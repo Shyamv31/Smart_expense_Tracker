@@ -18,9 +18,11 @@ class ExpenseService {
         .collection('expenses')
         .orderBy('date', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => ExpenseModel.fromMap(doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => ExpenseModel.fromMap(doc.data()))
+              .toList(),
+        );
   }
 
   // Add expense

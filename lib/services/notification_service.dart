@@ -2,6 +2,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:io';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -15,10 +17,20 @@ class NotificationService {
     tz_data.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
 
-    const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const initSettings = InitializationSettings(android: androidSettings);
     await _notifications.initialize(settings: initSettings);
+  }
+
+  Future<void> requestBatteryOptimizationExemption() async {
+    if (Platform.isAndroid) {
+      final status = await Permission.ignoreBatteryOptimizations.status;
+      if (!status.isGranted) {
+        await Permission.ignoreBatteryOptimizations.request();
+      }
+    }
   }
 
   Future<void> scheduleDailyReminder(int hour, int minute) async {
@@ -62,10 +74,18 @@ class NotificationService {
     await _notifications.cancelAll();
   }
 
+  Future<void> requestExactAlarmPermission() async {
+    await _notifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.requestExactAlarmsPermission();
+  }
+
   Future<void> testNotification() async {
-    final scheduledDate = tz.TZDateTime.now(tz.local).add(
-      const Duration(seconds: 10),
-    );
+    final scheduledDate = tz.TZDateTime.now(
+      tz.local,
+    ).add(const Duration(seconds: 10));
     const androidDetails = AndroidNotificationDetails(
       'daily_reminder',
       'Daily Expense Reminder',
@@ -98,6 +118,23 @@ class NotificationService {
       title: '⚠️ Budget Alert',
       body:
           'You spent ₹${spent.toStringAsFixed(0)} of ₹${budget.toStringAsFixed(0)} budget!',
+      notificationDetails: details,
+    );
+  }
+
+  Future<void> showImmediateNotification() async {
+    const androidDetails = AndroidNotificationDetails(
+      'test_channel',
+      'Test',
+      channelDescription: 'Test notification',
+      importance: Importance.max,
+      priority: Priority.max,
+    );
+    const details = NotificationDetails(android: androidDetails);
+    await _notifications.show(
+      id: 2,
+      title: '🔔 Test',
+      body: 'Notifications working! ✅',
       notificationDetails: details,
     );
   }

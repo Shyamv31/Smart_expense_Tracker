@@ -37,6 +37,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _errorMessage = 'Password must be at least 6 characters');
       return;
     }
+    // Email validation
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(_emailController.text.trim())) {
+      setState(() => _errorMessage = 'Please enter a valid email address');
+      return;
+    }
+    // Name validation
+    if (_nameController.text.trim().length < 2) {
+      setState(() => _errorMessage = 'Name must be at least 2 characters');
+      return;
+    }
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -48,7 +59,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
     setState(() => _isLoading = false);
     if (error != null) {
-      setState(() => _errorMessage = 'Registration failed. Email may already be in use.');
+      setState(
+        () =>
+            _errorMessage = 'Registration failed. Email may already be in use.',
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    }
+  }
+
+  Future<void> _registerWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    String? error = await _authService.signInWithGoogle();
+    setState(() => _isLoading = false);
+    if (error != null) {
+      setState(() => _errorMessage = 'Google sign in failed. Try again.');
     } else {
       Navigator.pushReplacement(
         context,
@@ -78,7 +109,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.arrow_back, color: AppColors.textDark),
+                  child: const Icon(
+                    Icons.arrow_back,
+                    color: AppColors.textDark,
+                  ),
                 ),
               ),
 
@@ -96,10 +130,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 8),
               const Text(
                 'Start tracking your expenses today',
-                style: TextStyle(
-                  color: AppColors.textLight,
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: AppColors.textLight, fontSize: 14),
               ),
 
               const SizedBox(height: 32),
@@ -125,14 +156,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _nameController,
                       decoration: InputDecoration(
                         labelText: 'Full Name',
-                        prefixIcon: const Icon(Icons.person_outlined,
-                            color: AppColors.primary),
+                        prefixIcon: const Icon(
+                          Icons.person_outlined,
+                          color: AppColors.primary,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.primary),
+                          borderSide: const BorderSide(
+                            color: AppColors.primary,
+                          ),
                         ),
                       ),
                     ),
@@ -144,14 +179,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
                         labelText: 'Email',
-                        prefixIcon: const Icon(Icons.email_outlined,
-                            color: AppColors.primary),
+                        prefixIcon: const Icon(
+                          Icons.email_outlined,
+                          color: AppColors.primary,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.primary),
+                          borderSide: const BorderSide(
+                            color: AppColors.primary,
+                          ),
                         ),
                       ),
                     ),
@@ -163,8 +202,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       obscureText: _obscurePassword,
                       decoration: InputDecoration(
                         labelText: 'Password',
-                        prefixIcon: const Icon(Icons.lock_outlined,
-                            color: AppColors.primary),
+                        prefixIcon: const Icon(
+                          Icons.lock_outlined,
+                          color: AppColors.primary,
+                        ),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword
@@ -173,14 +214,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             color: AppColors.textLight,
                           ),
                           onPressed: () => setState(
-                              () => _obscurePassword = !_obscurePassword),
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.primary),
+                          borderSide: const BorderSide(
+                            color: AppColors.primary,
+                          ),
                         ),
                       ),
                     ),
@@ -192,8 +236,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       obscureText: _obscureConfirmPassword,
                       decoration: InputDecoration(
                         labelText: 'Confirm Password',
-                        prefixIcon: const Icon(Icons.lock_outlined,
-                            color: AppColors.primary),
+                        prefixIcon: const Icon(
+                          Icons.lock_outlined,
+                          color: AppColors.primary,
+                        ),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscureConfirmPassword
@@ -201,16 +247,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 : Icons.visibility,
                             color: AppColors.textLight,
                           ),
-                          onPressed: () => setState(() =>
-                              _obscureConfirmPassword =
-                                  !_obscureConfirmPassword),
+                          onPressed: () => setState(
+                            () => _obscureConfirmPassword =
+                                !_obscureConfirmPassword,
+                          ),
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.primary),
+                          borderSide: const BorderSide(
+                            color: AppColors.primary,
+                          ),
                         ),
                       ),
                     ),
@@ -243,7 +292,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
                         child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
                             : const Text(
                                 'Create Account',
                                 style: TextStyle(
@@ -257,8 +308,54 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
+              // OR Divider
+              Row(
+                children: [
+                  Expanded(child: Divider(color: Colors.grey.shade300)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      'OR',
+                      style: TextStyle(color: Colors.grey.shade500),
+                    ),
+                  ),
+                  Expanded(child: Divider(color: Colors.grey.shade300)),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // Google Sign In Button
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton.icon(
+                  onPressed: _isLoading ? null : _registerWithGoogle,
+                  icon: Image.network(
+                    'https://www.google.com/favicon.ico',
+                    width: 24,
+                    height: 24,
+                  ),
+                  label: const Text(
+                    'Continue with Google',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    side: BorderSide(color: Colors.grey.shade300),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
               // Login Link
               Center(
                 child: Row(

@@ -34,6 +34,18 @@ class AppCategories {
   ];
 }
 
+class IncomeCategories {
+  static const List<Map<String, dynamic>> categories = [
+    {'name': 'Salary', 'icon': '💼', 'color': Color(0xFF10B981)},
+    {'name': 'Freelance', 'icon': '💻', 'color': Color(0xFF0EA5E9)},
+    {'name': 'Business', 'icon': '🏪', 'color': Color(0xFF8B5CF6)},
+    {'name': 'Investment', 'icon': '📈', 'color': Color(0xFFF59E0B)},
+    {'name': 'Gift', 'icon': '🎁', 'color': Color(0xFFEC4899)},
+    {'name': 'Refund', 'icon': '↩️', 'color': Color(0xFF06B6D4)},
+    {'name': 'Other', 'icon': '💰', 'color': Color(0xFF6B7280)},
+  ];
+}
+
 class AppStrings {
   static const appName = 'Smart Expense Tracker';
   static const currency = '₹';

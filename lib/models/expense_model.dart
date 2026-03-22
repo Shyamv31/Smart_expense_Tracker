@@ -8,6 +8,8 @@ class ExpenseModel {
   final String note;
   final DateTime date;
   final DateTime createdAt;
+  final String type; // 'expense' or 'income'
+  final String paymentMode; // cash, card, upi, netbanking
 
   ExpenseModel({
     required this.id,
@@ -19,9 +21,10 @@ class ExpenseModel {
     this.note = '',
     required this.date,
     required this.createdAt,
+    this.type = 'expense',
+    this.paymentMode = 'cash',
   });
 
-  // Convert to Firestore map
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -33,10 +36,11 @@ class ExpenseModel {
       'note': note,
       'date': date.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
+      'type': type,
+      'paymentMode': paymentMode,
     };
   }
 
-  // Get from Firestore map
   factory ExpenseModel.fromMap(Map<String, dynamic> map) {
     return ExpenseModel(
       id: map['id'],
@@ -48,6 +52,11 @@ class ExpenseModel {
       note: map['note'] ?? '',
       date: DateTime.parse(map['date']),
       createdAt: DateTime.parse(map['createdAt']),
+      type: map['type'] ?? 'expense',
+      paymentMode: map['paymentMode'] ?? 'cash',
     );
   }
+
+  bool get isIncome => type == 'income';
+  bool get isExpense => type == 'expense';
 }

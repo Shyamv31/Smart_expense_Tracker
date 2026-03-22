@@ -11,9 +11,23 @@ class HistoryScreen extends StatefulWidget {
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> {
+class _HistoryScreenState extends State<HistoryScreen>
+    with SingleTickerProviderStateMixin {
   final _expenseService = ExpenseService();
   String _selectedCategory = 'All';
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,125 +41,167 @@ class _HistoryScreenState extends State<HistoryScreen> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         elevation: 0,
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.white,
+          indicatorWeight: 3,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white60,
+          tabs: const [
+            Tab(text: 'All'),
+            Tab(icon: Icon(Icons.arrow_upward_rounded), text: 'Expense'),
+            Tab(icon: Icon(Icons.arrow_downward_rounded), text: 'Income'),
+          ],
+        ),
       ),
-      body: Column(
+      body: TabBarView(
+        controller: _tabController,
         children: [
-          // Category Filter
-          Container(
-            color: AppColors.primary,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Row(
-                children: [
-                  _buildFilterChip('All'),
-                  ...AppCategories.categories
-                      .map((c) => _buildFilterChip(c['name'])),
-                ],
-              ),
-            ),
-          ),
-
-          // Expense List
-          Expanded(
-            child: StreamBuilder<List<ExpenseModel>>(
-              stream: _expenseService.getExpenses(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final allExpenses = snapshot.data ?? [];
-                final expenses = _selectedCategory == 'All'
-                    ? allExpenses
-                    : allExpenses
-                        .where((e) => e.category == _selectedCategory)
-                        .toList();
-
-                if (expenses.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Text('💸', style: TextStyle(fontSize: 50)),
-                        SizedBox(height: 12),
-                        Text(
-                          'No transactions found',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: AppColors.textLight,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                // Group by date
-                Map<String, List<ExpenseModel>> grouped = {};
-                for (var e in expenses) {
-                  final key = DateFormat('MMM d, yyyy').format(e.date);
-                  grouped[key] = [...(grouped[key] ?? []), e];
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: grouped.keys.length,
-                  itemBuilder: (context, index) {
-                    final date = grouped.keys.elementAt(index);
-                    final dayExpenses = grouped[date]!;
-                    final dayTotal = dayExpenses.fold(
-                        0.0, (sum, e) => sum + e.amount);
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Date Header
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                date,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textDark,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              Text(
-                                '-₹${dayTotal.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                  color: AppColors.error,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Expenses for this date
-                        ...dayExpenses.map((expense) =>
-                            _buildExpenseCard(expense)),
-
-                        const SizedBox(height: 8),
-                      ],
-                    );
-                  },
-                );
-              },
-            ),
-          ),
+          _buildTransactionList('all'),
+          _buildTransactionList('expense'),
+          _buildTransactionList('income'),
         ],
       ),
     );
   }
 
+  Widget _buildTransactionList(String type) {
+    return Column(
+      children: [
+        Container(
+          color: AppColors.primary,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Row(
+              children: [
+                _buildFilterChip('All'),
+                if (type == 'all' || type == 'expense')
+                  ...AppCategories.categories.map(
+                    (c) => _buildFilterChip(c['name']),
+                  ),
+                if (type == 'income')
+                  ...IncomeCategories.categories.map(
+                    (c) => _buildFilterChip(c['name']),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<List<ExpenseModel>>(
+            stream: _expenseService.getExpenses(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final allExpenses = snapshot.data ?? [];
+              var expenses = type == 'all'
+                  ? allExpenses
+                  : allExpenses.where((e) => e.type == type).toList();
+              if (_selectedCategory != 'All') {
+                expenses = expenses
+                    .where((e) => e.category == _selectedCategory)
+                    .toList();
+              }
+              if (expenses.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        type == 'income' ? '💰' : '💸',
+                        style: const TextStyle(fontSize: 50),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        type == 'income'
+                            ? 'No income records found'
+                            : 'No transactions found',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: AppColors.textLight,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              Map<String, List<ExpenseModel>> grouped = {};
+              for (var e in expenses) {
+                final key = DateFormat('MMM d, yyyy').format(e.date);
+                grouped[key] = [...(grouped[key] ?? []), e];
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: grouped.keys.length,
+                itemBuilder: (context, index) {
+                  final date = grouped.keys.elementAt(index);
+                  final dayExpenses = grouped[date]!;
+                  final dayIncome = dayExpenses
+                      .where((e) => e.isIncome)
+                      .fold(0.0, (sum, e) => sum + e.amount);
+                  final dayExpenseTotal = dayExpenses
+                      .where((e) => e.isExpense)
+                      .fold(0.0, (sum, e) => sum + e.amount);
+                  final dayTotal = dayIncome - dayExpenseTotal;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              date,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textDark,
+                                fontSize: 14,
+                              ),
+                            ),
+                            Text(
+                              type == 'income'
+                                  ? '+₹${dayIncome.toStringAsFixed(2)}'
+                                  : type == 'expense'
+                                  ? '-₹${dayExpenseTotal.toStringAsFixed(2)}'
+                                  : '${dayTotal >= 0 ? '+' : ''}₹${dayTotal.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                color: type == 'income'
+                                    ? AppColors.secondary
+                                    : type == 'expense'
+                                    ? AppColors.error
+                                    : dayTotal >= 0
+                                    ? AppColors.secondary
+                                    : AppColors.error,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ...dayExpenses.map(
+                        (expense) => _buildExpenseCard(expense),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> _showEditDialog(ExpenseModel expense) async {
     final titleController = TextEditingController(text: expense.title);
-    final amountController =
-        TextEditingController(text: expense.amount.toStringAsFixed(0));
+    final amountController = TextEditingController(
+      text: expense.amount.toStringAsFixed(0),
+    );
     final noteController = TextEditingController(text: expense.note);
     String selectedCategory = expense.category;
     String selectedIcon = expense.categoryIcon;
@@ -159,14 +215,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             title: const Text(
-              'Edit Expense',
+              'Edit Transaction',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Title
                   TextField(
                     controller: titleController,
                     decoration: InputDecoration(
@@ -177,8 +232,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-
-                  // Amount
                   TextField(
                     controller: amountController,
                     keyboardType: TextInputType.number,
@@ -190,8 +243,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-
-                  // Note
                   TextField(
                     controller: noteController,
                     decoration: InputDecoration(
@@ -202,71 +253,38 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-
-                  // Category
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Category',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textDark,
+                  DropdownButtonFormField<String>(
+                    value: selectedCategory,
+                    decoration: InputDecoration(
+                      labelText: 'Category',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 4,
-                      childAspectRatio: 0.9,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
-                    ),
-                    itemCount: AppCategories.categories.length,
-                    itemBuilder: (context, index) {
-                      final cat = AppCategories.categories[index];
-                      final isSelected = selectedCategory == cat['name'];
-                      return GestureDetector(
-                        onTap: () => setDialogState(() {
-                          selectedCategory = cat['name'];
-                          selectedIcon = cat['icon'];
-                        }),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? (cat['color'] as Color).withOpacity(0.2)
-                                : Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(10),
-                            border: isSelected
-                                ? Border.all(
-                                    color: cat['color'] as Color, width: 2)
-                                : null,
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(cat['icon'],
-                                  style: const TextStyle(fontSize: 20)),
-                              Text(
-                                cat['name'],
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  color: isSelected
-                                      ? cat['color'] as Color
-                                      : AppColors.textLight,
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
+                    items:
+                        [
+                          ...AppCategories.categories,
+                          ...IncomeCategories.categories,
+                        ].map((cat) {
+                          return DropdownMenuItem<String>(
+                            value: cat['name'] as String,
+                            child: Text('${cat['icon']} ${cat['name']}'),
+                          );
+                        }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() {
+                          selectedCategory = value;
+                          final allCats = [
+                            ...AppCategories.categories,
+                            ...IncomeCategories.categories,
+                          ];
+                          selectedIcon = allCats.firstWhere(
+                            (c) => c['name'] == value,
+                            orElse: () => AppCategories.categories.last,
+                          )['icon'];
+                        });
+                      }
                     },
                   ),
                 ],
@@ -293,12 +311,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     note: noteController.text.trim(),
                     date: expense.date,
                     createdAt: expense.createdAt,
+                    type: expense.type,
                   );
                   await _expenseService.updateExpense(updated);
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Expense updated! ✅'),
+                      content: Text('Transaction updated! ✅'),
                       backgroundColor: AppColors.secondary,
                     ),
                   );
@@ -319,6 +338,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  String _getPaymentIcon(String mode) {
+    switch (mode) {
+      case 'card':
+        return '💳 Card';
+      case 'upi':
+        return '📱 UPI';
+      case 'netbanking':
+        return '🏦 Net Banking';
+      default:
+        return '💵 Cash';
+    }
+  }
+
   Widget _buildFilterChip(String label) {
     final isSelected = _selectedCategory == label;
     return GestureDetector(
@@ -334,8 +366,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           label,
           style: TextStyle(
             color: isSelected ? AppColors.primary : Colors.white,
-            fontWeight:
-                isSelected ? FontWeight.bold : FontWeight.normal,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             fontSize: 13,
           ),
         ),
@@ -343,8 +374,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-Widget _buildExpenseCard(ExpenseModel expense) {
-    final cat = AppCategories.categories.firstWhere(
+  Widget _buildExpenseCard(ExpenseModel expense) {
+    final allCats = [
+      ...AppCategories.categories,
+      ...IncomeCategories.categories,
+    ];
+    final cat = allCats.firstWhere(
       (c) => c['name'] == expense.category,
       orElse: () => AppCategories.categories.last,
     );
@@ -365,7 +400,7 @@ Widget _buildExpenseCard(ExpenseModel expense) {
         return await showDialog(
           context: context,
           builder: (_) => AlertDialog(
-            title: const Text('Delete Expense'),
+            title: const Text('Delete Transaction'),
             content: Text('Delete "${expense.title}"?'),
             actions: [
               TextButton(
@@ -387,7 +422,7 @@ Widget _buildExpenseCard(ExpenseModel expense) {
         await _expenseService.deleteExpense(expense.id);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Expense deleted!'),
+            content: Text('Transaction deleted!'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -399,10 +434,7 @@ Widget _buildExpenseCard(ExpenseModel expense) {
           color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 8,
-            ),
+            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8),
           ],
         ),
         child: Row(
@@ -415,8 +447,7 @@ Widget _buildExpenseCard(ExpenseModel expense) {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Center(
-                child: Text(cat['icon'],
-                    style: const TextStyle(fontSize: 22)),
+                child: Text(cat['icon'], style: const TextStyle(fontSize: 22)),
               ),
             ),
             const SizedBox(width: 12),
@@ -441,7 +472,7 @@ Widget _buildExpenseCard(ExpenseModel expense) {
                       ),
                     ),
                   Text(
-                    '${expense.category} • ${DateFormat('MMM d').format(expense.date)}',
+                    '${expense.category} • ${DateFormat('MMM d').format(expense.date)} • ${_getPaymentIcon(expense.paymentMode)}',
                     style: const TextStyle(
                       color: AppColors.textLight,
                       fontSize: 12,
@@ -454,33 +485,40 @@ Widget _buildExpenseCard(ExpenseModel expense) {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  '-₹${expense.amount.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    color: AppColors.error,
+                  expense.isIncome
+                      ? '+₹${expense.amount.toStringAsFixed(2)}'
+                      : '-₹${expense.amount.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    color: expense.isIncome
+                        ? AppColors.secondary
+                        : AppColors.error,
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
                   ),
                 ),
                 const SizedBox(height: 4),
-                GestureDetector(
-                  onTap: () => _showEditDialog(expense),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'Edit',
-                      style: TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                if (expense.note != 'Auto-detected from SMS')
+                  GestureDetector(
+                    onTap: () => _showEditDialog(expense),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Edit',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ],

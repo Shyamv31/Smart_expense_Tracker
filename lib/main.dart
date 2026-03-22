@@ -7,13 +7,28 @@ import 'package:expense_tracker/screens/login_screen.dart';
 import 'package:expense_tracker/screens/home_screen.dart';
 import 'package:expense_tracker/services/theme_provider.dart';
 import 'package:expense_tracker/services/notification_service.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:expense_tracker/services/sms_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await NotificationService().initialize();
+  await NotificationService().requestExactAlarmPermission();
+  await NotificationService().requestBatteryOptimizationExemption();
+  SmsService().initialize();
+  // Request exact alarm permission for Android 12+
+  final plugin = FlutterLocalNotificationsPlugin();
+  await plugin
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >()
+      ?.requestNotificationsPermission();
+  await plugin
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >()
+      ?.requestExactAlarmsPermission();
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),
@@ -31,10 +46,23 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Smart Expense Tracker',
       debugShowCheckedModeBanner: false,
-      theme: themeProvider.lightTheme,
-      darkTheme: themeProvider.darkTheme,
-      themeMode:
-          themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      theme: themeProvider.lightTheme.copyWith(
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: ZoomPageTransitionsBuilder(),
+            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          },
+        ),
+      ),
+      darkTheme: themeProvider.darkTheme.copyWith(
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: ZoomPageTransitionsBuilder(),
+            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          },
+        ),
+      ),
+      themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
       home: const SplashScreen(),
     );
   }
@@ -205,10 +233,7 @@ class _SplashScreenState extends State<SplashScreen>
                   opacity: _fadeAnimation,
                   child: const Text(
                     '🇮🇳 Made in India',
-                    style: TextStyle(
-                      color: Colors.white54,
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: Colors.white54, fontSize: 13),
                   ),
                 ),
               ],

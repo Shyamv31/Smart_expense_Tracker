@@ -38,26 +38,51 @@ class _ReportsScreenState extends State<ReportsScreen> {
           }
           final allExpenses = snapshot.data ?? [];
           final expenses = allExpenses
-              .where((e) =>
-                  e.date.month == _selectedMonth &&
-                  e.date.year == _selectedYear)
+              .where(
+                (e) =>
+                    e.date.month == _selectedMonth &&
+                    e.date.year == _selectedYear,
+              )
               .toList();
 
-          final total = expenses.fold(0.0, (sum, e) => sum + e.amount);
+          final expenseList = expenses.where((e) => e.isExpense).toList();
+          final incomeList = expenses.where((e) => e.isIncome).toList();
+          final totalExpense = expenseList.fold(
+            0.0,
+            (sum, e) => sum + e.amount,
+          );
+          final totalIncome = incomeList.fold(0.0, (sum, e) => sum + e.amount);
+          final total = totalExpense;
+          final savings = totalIncome - totalExpense;
 
-          // Category totals
+          // Expense category totals
           Map<String, double> categoryTotals = {};
-          for (var e in expenses) {
+          for (var e in expenseList) {
             categoryTotals[e.category] =
                 (categoryTotals[e.category] ?? 0) + e.amount;
           }
 
+          // Income category totals
+          Map<String, double> incomeCategoryTotals = {};
+          for (var e in incomeList) {
+            incomeCategoryTotals[e.category] =
+                (incomeCategoryTotals[e.category] ?? 0) + e.amount;
+          }
+
           // Weekly totals
           Map<int, double> weeklyTotals = {1: 0, 2: 0, 3: 0, 4: 0};
-          for (var e in expenses) {
+          for (var e in expenseList) {
             final week = ((e.date.day - 1) / 7).floor() + 1;
             final weekNum = week > 4 ? 4 : week;
             weeklyTotals[weekNum] = (weeklyTotals[weekNum] ?? 0) + e.amount;
+          }
+
+          Map<int, double> weeklyIncomeTotals = {1: 0, 2: 0, 3: 0, 4: 0};
+          for (var e in incomeList) {
+            final week = ((e.date.day - 1) / 7).floor() + 1;
+            final weekNum = week > 4 ? 4 : week;
+            weeklyIncomeTotals[weekNum] =
+                (weeklyIncomeTotals[weekNum] ?? 0) + e.amount;
           }
 
           return SingleChildScrollView(
@@ -69,36 +94,120 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 _buildMonthSelector(),
                 const SizedBox(height: 20),
 
-                // Total Card
+                // Income vs Expense Cards
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF10B981), Color(0xFF059669)],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '💰 Income',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '₹${totalIncome.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '💸 Expense',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '₹${totalExpense.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Savings Card
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
                     ),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Column(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Total Spending',
-                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '🏦 Savings',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                          Text(
+                            '₹${savings.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              color: savings >= 0
+                                  ? const Color(0xFF86EFAC)
+                                  : const Color(0xFFFCA5A5),
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
                       Text(
-                        '₹${total.toStringAsFixed(2)}',
+                        DateFormat(
+                          'MMMM yyyy',
+                        ).format(DateTime(_selectedYear, _selectedMonth)),
                         style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
+                          color: Colors.white70,
+                          fontSize: 13,
                         ),
-                      ),
-                      Text(
-                        DateFormat('MMMM yyyy')
-                            .format(DateTime(_selectedYear, _selectedMonth)),
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 13),
                       ),
                     ],
                   ),
@@ -106,7 +215,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
                 const SizedBox(height: 24),
 
-                if (expenses.isEmpty)
+                if (expenses.isEmpty && incomeList.isEmpty)
                   const Center(
                     child: Padding(
                       padding: EdgeInsets.all(40),
@@ -152,7 +261,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8),
         ],
       ),
       child: Row(
@@ -172,8 +281,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
             icon: const Icon(Icons.chevron_left, color: AppColors.primary),
           ),
           Text(
-            DateFormat('MMMM yyyy')
-                .format(DateTime(_selectedYear, _selectedMonth)),
+            DateFormat(
+              'MMMM yyyy',
+            ).format(DateTime(_selectedYear, _selectedMonth)),
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -206,7 +316,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8),
         ],
       ),
       child: Column(
@@ -270,7 +380,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8),
         ],
       ),
       child: Column(
@@ -305,11 +415,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 }).toList(),
                 titlesData: FlTitlesData(
                   leftTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                   rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                   topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
@@ -341,7 +454,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Widget _buildCategoryBreakdown(
-      Map<String, double> categoryTotals, double total) {
+    Map<String, double> categoryTotals,
+    double total,
+  ) {
     final sorted = categoryTotals.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -351,7 +466,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8),
         ],
       ),
       child: Column(
@@ -378,8 +493,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 children: [
                   Row(
                     children: [
-                      Text(cat['icon'],
-                          style: const TextStyle(fontSize: 18)),
+                      Text(cat['icon'], style: const TextStyle(fontSize: 18)),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -414,7 +528,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       value: percentage,
                       backgroundColor: Colors.grey.shade200,
                       valueColor: AlwaysStoppedAnimation<Color>(
-                          cat['color'] as Color),
+                        cat['color'] as Color,
+                      ),
                       minHeight: 8,
                     ),
                   ),
@@ -432,10 +547,7 @@ class _PieChartWidget extends StatefulWidget {
   final List<MapEntry<String, double>> entries;
   final double total;
 
-  const _PieChartWidget({
-    required this.entries,
-    required this.total,
-  });
+  const _PieChartWidget({required this.entries, required this.total});
 
   @override
   State<_PieChartWidget> createState() => _PieChartWidgetState();
@@ -456,8 +568,7 @@ class _PieChartWidgetState extends State<_PieChartWidget> {
                 if (response == null || response.touchedSection == null) {
                   _touchedIndex = -1;
                 } else {
-                  _touchedIndex =
-                      response.touchedSection!.touchedSectionIndex;
+                  _touchedIndex = response.touchedSection!.touchedSectionIndex;
                 }
               });
             },

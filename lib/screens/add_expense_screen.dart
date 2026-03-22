@@ -5,8 +5,8 @@ import 'package:expense_tracker/utils/constants.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import 'package:speech_to_text/speech_to_text.dart';
-import 'package:image_picker/image_picker.dart';                        
-import 'package:expense_tracker/services/gemini_service.dart';          
+import 'package:image_picker/image_picker.dart';
+import 'package:expense_tracker/services/gemini_service.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   const AddExpenseScreen({super.key});
@@ -27,6 +27,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
   String? _errorMessage;
+  String _type = 'expense'; // 'expense' or 'income'
+  String _paymentMode = 'cash';
 
   // Voice
   bool _isListening = false;
@@ -43,6 +45,36 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   void initState() {
     super.initState();
     _initSpeech();
+    _retrieveLostData();
+  }
+
+  Future<void> _retrieveLostData() async {
+    final LostDataResponse response = await _imagePicker.retrieveLostData();
+    if (response.isEmpty) return;
+    if (response.file != null) {
+      setState(() => _isScanningReceipt = true);
+      final bytes = await response.file!.readAsBytes();
+      final mimeType = response.file!.path.toLowerCase().endsWith('.png')
+          ? 'image/png'
+          : 'image/jpeg';
+      final result = await _geminiService.scanReceipt(bytes, mimeType);
+      print('DEBUG RESULT: $result');
+      setState(() {
+        _isScanningReceipt = false;
+        if (result['title'] != '') _titleController.text = result['title'];
+        if (result['amount'] != 0.0) {
+          _amountController.text = result['amount'].toStringAsFixed(0);
+        }
+        if (result['note'] != '') _noteController.text = result['note'];
+        final category = result['category'];
+        final cat = AppCategories.categories.firstWhere(
+          (c) => c['name'] == category,
+          orElse: () => AppCategories.categories.last,
+        );
+        _selectedCategory = cat['name'];
+        _selectedIcon = cat['icon'];
+      });
+    }
   }
 
   Future<void> _initSpeech() async {
@@ -100,15 +132,38 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   // ← ADD FROM HERE
   Future<void> _scanReceipt() async {
+    // Show dialog to choose camera or gallery
+    final source = await showDialog<ImageSource>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Scan Receipt'),
+        content: const Text('Choose image source:'),
+        actions: [
+          TextButton.icon(
+            onPressed: () => Navigator.pop(context, ImageSource.gallery),
+            icon: const Icon(Icons.photo_library),
+            label: const Text('Gallery'),
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.pop(context, ImageSource.camera),
+            icon: const Icon(Icons.camera_alt),
+            label: const Text('Camera'),
+          ),
+        ],
+      ),
+    );
+
+    if (source == null) return;
+
     final picked = await _imagePicker.pickImage(
-      source: ImageSource.camera,
+      source: source,
       imageQuality: 80,
     );
     if (picked == null) return;
     setState(() => _isScanningReceipt = true);
-final bytes = await picked.readAsBytes();
-    final mimeType = picked.path.toLowerCase().endsWith('.png') 
-        ? 'image/png' 
+    final bytes = await picked.readAsBytes();
+    final mimeType = picked.path.toLowerCase().endsWith('.png')
+        ? 'image/png'
         : 'image/jpeg';
     final result = await _geminiService.scanReceipt(bytes, mimeType);
     print('DEBUG RESULT: $result');
@@ -174,6 +229,8 @@ final bytes = await picked.readAsBytes();
         note: _noteController.text.trim(),
         date: _selectedDate,
         createdAt: DateTime.now(),
+        type: _type,
+        paymentMode: _paymentMode,
       );
       await _expenseService.addExpense(expense);
       Navigator.pop(context);
@@ -188,22 +245,27 @@ final bytes = await picked.readAsBytes();
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
+        backgroundColor: _type == 'expense'
+            ? AppColors.primary
+            : AppColors.secondary,
         foregroundColor: Colors.white,
-        title: const Text(
-          'Add Expense',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          _type == 'expense' ? 'Add Expense' : 'Add Income',
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         elevation: 0,
         actions: [
-                    // Camera/Receipt Scanner button  ← ADD FROM HERE
+          // Camera/Receipt Scanner button  ← ADD FROM HERE
           if (_isScanningReceipt)
             const Padding(
               padding: EdgeInsets.all(14),
               child: SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
               ),
             )
           else
@@ -213,15 +275,14 @@ final bytes = await picked.readAsBytes();
               tooltip: 'Scan Receipt',
             ),
           // ← ADD UNTIL HERE
-        
+
           // Language Toggle
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: GestureDetector(
               onTap: () {
                 setState(() {
-                  _voiceLocale =
-                      _voiceLocale == 'en_IN' ? 'ta_IN' : 'en_IN';
+                  _voiceLocale = _voiceLocale == 'en_IN' ? 'ta_IN' : 'en_IN';
                 });
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -236,8 +297,10 @@ final bytes = await picked.readAsBytes();
                 );
               },
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
@@ -260,6 +323,99 @@ final bytes = await picked.readAsBytes();
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Income/Expense Toggle
+              Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() {
+                          _type = 'expense';
+                          _selectedCategory = 'Food';
+                          _selectedIcon = '🍔';
+                        }),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _type == 'expense'
+                                ? AppColors.primary
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.arrow_upward_rounded,
+                                color: _type == 'expense'
+                                    ? Colors.white
+                                    : Colors.grey,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Expense',
+                                style: TextStyle(
+                                  color: _type == 'expense'
+                                      ? Colors.white
+                                      : Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() {
+                          _type = 'income';
+                          _selectedCategory = 'Salary';
+                          _selectedIcon = '💼';
+                        }),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _type == 'income'
+                                ? AppColors.secondary
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.arrow_downward_rounded,
+                                color: _type == 'income'
+                                    ? Colors.white
+                                    : Colors.grey,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Income',
+                                style: TextStyle(
+                                  color: _type == 'income'
+                                      ? Colors.white
+                                      : Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
               // Voice Status Banner
               if (_isListening)
@@ -305,8 +461,7 @@ final bytes = await picked.readAsBytes();
                   children: [
                     const Text(
                       'Amount (₹)',
-                      style:
-                          TextStyle(color: Colors.white70, fontSize: 14),
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
                     ),
                     const SizedBox(height: 8),
                     Row(
@@ -325,7 +480,9 @@ final bytes = await picked.readAsBytes();
                               border: InputBorder.none,
                               hintText: '0.00',
                               hintStyle: TextStyle(
-                                  color: Colors.white38, fontSize: 40),
+                                color: Colors.white38,
+                                fontSize: 40,
+                              ),
                             ),
                           ),
                         ),
@@ -375,8 +532,10 @@ final bytes = await picked.readAsBytes();
                       decoration: InputDecoration(
                         labelText: 'Title',
                         hintText: 'e.g. Lunch, Bus ticket...',
-                        prefixIcon: const Icon(Icons.title,
-                            color: AppColors.primary),
+                        prefixIcon: const Icon(
+                          Icons.title,
+                          color: AppColors.primary,
+                        ),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _isListening ? Icons.stop : Icons.mic,
@@ -393,8 +552,9 @@ final bytes = await picked.readAsBytes();
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              const BorderSide(color: AppColors.primary),
+                          borderSide: const BorderSide(
+                            color: AppColors.primary,
+                          ),
                         ),
                       ),
                     ),
@@ -407,18 +567,20 @@ final bytes = await picked.readAsBytes();
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          border:
-                              Border.all(color: Colors.grey.shade300),
+                          border: Border.all(color: Colors.grey.shade300),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.calendar_today,
-                                color: AppColors.primary),
+                            const Icon(
+                              Icons.calendar_today,
+                              color: AppColors.primary,
+                            ),
                             const SizedBox(width: 12),
                             Text(
-                              DateFormat('EEEE, MMM d yyyy')
-                                  .format(_selectedDate),
+                              DateFormat(
+                                'EEEE, MMM d yyyy',
+                              ).format(_selectedDate),
                               style: const TextStyle(
                                 fontSize: 15,
                                 color: AppColors.textDark,
@@ -431,6 +593,78 @@ final bytes = await picked.readAsBytes();
 
                     const SizedBox(height: 16),
 
+                    // Payment Mode
+                    const Text(
+                      'Payment Mode',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children:
+                          [
+                            {'mode': 'cash', 'icon': '💵', 'label': 'Cash'},
+                            {'mode': 'card', 'icon': '💳', 'label': 'Card'},
+                            {'mode': 'upi', 'icon': '📱', 'label': 'UPI'},
+                            {
+                              'mode': 'netbanking',
+                              'icon': '🏦',
+                              'label': 'Net Banking',
+                            },
+                          ].map((item) {
+                            final isSelected = _paymentMode == item['mode'];
+                            return Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(
+                                  () => _paymentMode = item['mode']!,
+                                ),
+                                child: Container(
+                                  margin: const EdgeInsets.only(right: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? AppColors.primary.withOpacity(0.1)
+                                        : Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: isSelected
+                                        ? Border.all(
+                                            color: AppColors.primary,
+                                            width: 2,
+                                          )
+                                        : null,
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        item['icon']!,
+                                        style: const TextStyle(fontSize: 18),
+                                      ),
+                                      Text(
+                                        item['label']!,
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          color: isSelected
+                                              ? AppColors.primary
+                                              : Colors.grey,
+                                          fontWeight: isSelected
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                    ),
+
+                    const SizedBox(height: 16),
                     // Note with voice
                     TextField(
                       controller: _noteController,
@@ -438,8 +672,10 @@ final bytes = await picked.readAsBytes();
                       decoration: InputDecoration(
                         labelText: 'Note (optional)',
                         hintText: 'Add a note...',
-                        prefixIcon: const Icon(Icons.note_outlined,
-                            color: AppColors.primary),
+                        prefixIcon: const Icon(
+                          Icons.note_outlined,
+                          color: AppColors.primary,
+                        ),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _isListening ? Icons.stop : Icons.mic,
@@ -456,8 +692,9 @@ final bytes = await picked.readAsBytes();
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              const BorderSide(color: AppColors.primary),
+                          borderSide: const BorderSide(
+                            color: AppColors.primary,
+                          ),
                         ),
                       ),
                     ),
@@ -480,16 +717,19 @@ final bytes = await picked.readAsBytes();
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 4,
                   childAspectRatio: 0.9,
                   crossAxisSpacing: 10,
                   mainAxisSpacing: 10,
                 ),
-                itemCount: AppCategories.categories.length,
+                itemCount: _type == 'income'
+                    ? IncomeCategories.categories.length
+                    : AppCategories.categories.length,
                 itemBuilder: (context, index) {
-                  final cat = AppCategories.categories[index];
+                  final cat = _type == 'income'
+                      ? IncomeCategories.categories[index]
+                      : AppCategories.categories[index];
                   final isSelected = _selectedCategory == cat['name'];
                   return GestureDetector(
                     onTap: () => setState(() {
@@ -503,8 +743,7 @@ final bytes = await picked.readAsBytes();
                             : AppColors.card,
                         borderRadius: BorderRadius.circular(12),
                         border: isSelected
-                            ? Border.all(
-                                color: cat['color'] as Color, width: 2)
+                            ? Border.all(color: cat['color'] as Color, width: 2)
                             : Border.all(color: Colors.grey.shade200),
                         boxShadow: [
                           BoxShadow(
@@ -516,8 +755,10 @@ final bytes = await picked.readAsBytes();
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(cat['icon'],
-                              style: const TextStyle(fontSize: 26)),
+                          Text(
+                            cat['icon'],
+                            style: const TextStyle(fontSize: 26),
+                          ),
                           const SizedBox(height: 4),
                           Text(
                             cat['name'],
@@ -563,8 +804,7 @@ final bytes = await picked.readAsBytes();
                     ),
                   ),
                   child: _isLoading
-                      ? const CircularProgressIndicator(
-                          color: Colors.white)
+                      ? const CircularProgressIndicator(color: Colors.white)
                       : const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
