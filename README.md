@@ -2,7 +2,6 @@
 
 <div align="center">
 
-![App Icon](assets/icons/smart.png)
 
 A powerful and intelligent expense tracking mobile application built with Flutter & Firebase
 
@@ -12,16 +11,6 @@ A powerful and intelligent expense tracking mobile application built with Flutte
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 
 </div>
-
----
-
-## 📱 Screenshots
-
-| Home | History | Reports | Menubar |
-|------|---------|---------|----------|
-| ![Home](screenshots/Home_Screen.jpeg) | ![History](screenshots/transaction_screen.jpeg) | ![Reports](screenshots/report_screen.jpeg) | ![Menubar](screenshots/menu_bar.jpeg) |
-
----
 
 ## ✨ Features
 
